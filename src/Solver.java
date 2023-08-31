@@ -1,124 +1,180 @@
 import java.io.*;
+import java.math.*;
 import java.util.*;
-import java.util.Random;
+
 import parcs.*;
 
+import static java.lang.Long.parseLong;
 
 public class Solver implements AM
 {
-    // головний метод
+
     public static void main(String[] args)
     {
-        System.out.println("The Solver class start method main");
-        // запуск нової задачі
-        task curtask = new task();
-        // прив'язка jar-файлів
-        curtask.addJarFile("Solver.jar");
-        curtask.addJarFile("FindNormMatrix.jar");
+        System.out.print("class Solver start method main\n");
 
-        System.out.println("The Solver class method main adder jar files");
-        // Запуск методу для виконання
-        (new Solver()).run(new AMInfo(curtask, (channel)null));
+        task mainTask = new task();
 
-        System.out.println("The Solver class method main finish work");
-        curtask.end();
+        mainTask.addJarFile("Solver.jar");
+        mainTask.addJarFile("Factorizer.jar");
+
+        System.out.print("class Solver method main added jars\n");
+
+        (new Solver()).run(new AMInfo(mainTask, (channel)null));
+
+        System.out.print("class Solver method main finish work\n");
+
+        mainTask.end();
     }
 
     public void run(AMInfo info)
     {
-        // параметри p i q, які є параметрами задачі
-        int p, q;
-        // параметри, які вказують на розмірність матриці і кількість демонів
-        int m, n, deamons;
-
+        long lt, lv, ln;
         try
         {
-            // ініціалізація потоку для читання
-            BufferedReader in = new BufferedReader(new FileReader(info.curtask.findFile("input_1.txt")));
-            // зчитування кожного рядка з файлу у змінні
-            p = Integer.parseInt(in.readLine());
-            q = Integer.parseInt(in.readLine());
-            m = Integer.parseInt(in.readLine());
-            n = Integer.parseInt(in.readLine());
-            deamons = Integer.parseInt(in.readLine());
+            BufferedReader in = new BufferedReader(new FileReader(info.curtask.findFile("input.txt")));
+
+            lt = parseLong(in.readLine());
+            lv = parseLong(in.readLine());
+            ln = parseLong(in.readLine());
         }
         catch (IOException e)
         {
-            System.out.print("Reading input data error\n");
+            System.out.print("Error while reading input\n");
             e.printStackTrace();
             return;
         }
-
-        /**
-         * Генерація матриці за заданими розмірами
-         * **/
-        // ініціалізація рандомайзера
-        Random random = new Random();
-        int maxValue = 100;
-        // генерація матриці та заповнення її рандомними числами
-        int[][] matrix = new int[m][n];
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < n; j++) {
-                matrix[i][j] = random.nextInt(maxValue);
-            }
-        }
-
-        // виведення на сервер
-        System.out.println("The Solver class have read data from the parent server");
-        System.out.println("p = " + p);
-        System.out.println("q = " + q);
-        System.out.println("m = " + m);
-        System.out.println("n = " + n);
-
-        // Обчислення часу виконання
+        System.out.print("class Solver method run read data from file\nt = " + lt + "\nv = " +
+                lv + "\nn = " + ln + "\n");
         long tStart = System.nanoTime();
-        // запуск методу для розподілу даних на парксі
-        double res = solve(info, deamons, p, q, m, n, matrix);
-
+        solve(info, lt, lv, ln);
         long tEnd = System.nanoTime();
-        // виведення часу виконання
-        System.out.println("Working time on matrix " + m + "x" + n + " processes: " + ((tEnd - tStart) / 1000000) + "ms");
-        System.out.println("L"+ p+ ","+ q + " norm = " + res);
+        System.out.println("time = " + ((tEnd - tStart) / 1000000) + "ms");
     }
 
-    static public double solve(AMInfo info, int deamons, int p, int q, int m, int n, int[][] a)
+    static public void solve(AMInfo info, long lnThread, long lv, long ln)
     {
-        // змінна для запису результата
-        double Res = 0.0;
+        BigInteger nThreads = BigInteger.valueOf(lnThread);
+        BigInteger v = BigInteger.valueOf(lv);
+        BigInteger n = BigInteger.valueOf(ln);
+
+        BigInteger root = n.sqrt();
 
         List <point> points = new ArrayList<point>();
         List <channel> channels = new ArrayList<channel>();
-        // Connection to points
-        for (int versionNumber = 0; versionNumber < deamons; versionNumber++) {
-            int x = versionNumber*n/deamons;
-            int y = (versionNumber+1)*n/deamons - 1;
-            double [][] matrix = new double[m][n/deamons];
 
-            for (int i = 0; i < m; i++) {
-                for (int j = 0; j < n/deamons; j++) {
-                   matrix [i][j] = a[i][x + j];
-                   //System.out.println(matrix[i][j]);
-                }
-            }
-            System.out.println(versionNumber);
-            points.add(info.createPoint());
-            System.out.println(points);
-            channels.add(points.get(versionNumber).createChannel());
-            points.get(versionNumber).execute("FindNormMatrix");
-            channels.get(versionNumber).write(p);
-            channels.get(versionNumber).write(q);
-            channels.get(versionNumber).write(matrix);
-        }
-
-        // Mapping results
-        for(int versionNumber = 0; versionNumber < deamons; versionNumber++)
+        for(BigInteger i = BigInteger.valueOf(0); i.compareTo(nThreads) == -1; i = i.add(BigInteger.valueOf(1)))
         {
-            Res += channels.get(versionNumber).readDouble();
-            //System.out.println((double)channels.get(versionNumber).readObject());
-        }
-        double Result = 0.0;
-        Result = Math.pow(Res, 1.0/(double)q);
+            BigInteger tl = root.multiply(i).divide(nThreads);
+            BigInteger tr = root.multiply(i.add(BigInteger.ONE)).divide(nThreads).subtract(BigInteger.ONE);
 
-        return Result;
+            int ii = i.intValue();
+
+            points.add(info.createPoint());
+            channels.add(points.get(ii).createChannel());
+
+            points.get(ii).execute("Factorizer");
+
+            channels.get(ii).write(ln);
+            channels.get(ii).write(tl.longValue());
+            channels.get(ii).write(tr.longValue());
+        }
+
+        BigInteger p = null, q;
+
+        long recRes = -1;
+        for(int i = 0; i < lnThread; i++)
+        {
+            recRes = channels.get(i).readLong();
+
+            if(recRes != -1)
+            {
+                p = BigInteger.valueOf(recRes);
+            }
+        }
+        q = n.divide(p);
+
+        System.out.println("p = " + p + "\nq = " + q + "\n");
+
+        BigInteger x1, x2;
+
+        x1 = solveModPrime(v, p);
+        x2 = solveModPrime(v, q);
+
+        if(x1 != null && x2 != null)
+        {
+            BigInteger l1, l2;
+
+            if(true)
+            {
+                List<BigInteger> tr = gcd_ext(p, q);
+
+                l1 = tr.get(1);
+                l2 = tr.get(2);
+            }
+
+            System.out.println("x1 = " + x1 + "\nx2 = " + x2 + "\n");
+
+            BigInteger y1, y2, y3, y4;
+
+            y1 = l1.multiply(p).multiply(x2).add(l2.multiply(q).multiply(x1)).mod(n);
+            y2 = l1.multiply(p).multiply(x2).subtract(l2.multiply(q).multiply(x1)).mod(n);
+            y3 = n.subtract(y1);
+            y4 = n.subtract(y2);
+
+            System.out.println("y1 = " + y1);
+            System.out.println("y2 = " + y2);
+            System.out.println("y3 = " + y3);
+            System.out.println("y4 = " + y4);
+        }
+        else
+        {
+            System.out.println("There is no solution");
+        }
+    }
+
+    public static BigInteger solveModPrime(BigInteger a, BigInteger p)
+    {
+        a = a.mod(p);
+
+        if(a.modPow(p.subtract(BigInteger.ONE).divide(BigInteger.TWO), p).compareTo(BigInteger.ONE) == 0)
+        {
+            return a.modPow(p.add(BigInteger.ONE).divide(BigInteger.valueOf(4)), p);
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    public static List<BigInteger> gcd_ext(BigInteger a, BigInteger b)
+    {
+        if (a.compareTo(BigInteger.ZERO) == 0)
+        {
+            List<BigInteger> res = new ArrayList<BigInteger>();
+
+            res.add(b);
+            res.add(BigInteger.ZERO);
+            res.add(BigInteger.ONE);
+
+            return res;
+        }
+
+        BigInteger _x, _y, gcd;
+        List<BigInteger> tr = gcd_ext(b.mod(a), a);
+        gcd = tr.get(0);
+        _x = tr.get(1);
+        _y = tr.get(2);
+
+        BigInteger x = _y.subtract(b.divide(a).multiply(_x));
+        BigInteger y = _x;
+
+        List<BigInteger> res = new ArrayList<BigInteger>();
+
+        res.add(gcd);
+        res.add(x);
+        res.add(y);
+
+        return res;
     }
 }
